@@ -1,0 +1,7 @@
+generators/
+design/
+test_run_dir/
+.idea/
+project/
+target/
+*.swp
