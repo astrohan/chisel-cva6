@@ -26,6 +26,14 @@ lazy val commonSettings = Seq(
   libraryDependencies ++= Seq("org.scala-lang" % "scala-reflect" % scalaVersion.value),
   libraryDependencies ++= Seq("org.json4s" %% "json4s-native" % "4.0.6"),
   libraryDependencies ++= Seq("org.scalatest" %% "scalatest" % scalaTestVersion % "test"),
+  unmanagedBase := (cva6Root / unmanagedBase).value,
+  allDependencies := {
+    // drop specific maven dependencies in subprojects
+    val dropDeps = Seq(("edu.berkeley.cs", "rocketchip"))
+    allDependencies.value.filterNot { dep =>
+      dropDeps.contains((dep.organization, dep.name))
+    }
+  },
   exportJars := true,
 )
 //-------------------------------------------------
@@ -34,15 +42,46 @@ lazy val commonSettings = Seq(
 
 
 //-------------------------------------------------
+// Rocket-chip dependencies (subsumes making RC a RootProject)
+//-------------------------------------------------
+val rocketChipDir = file("generators/rocket-chip")
+
+lazy val cde = (project in file("tools/cde"))
+  .settings(commonSettings)
+  .settings(Compile / scalaSource := baseDirectory.value / "cde/src/chipsalliance/rocketchip")
+  .settings(publishArtifact := false)
+
+lazy val hardfloat  = (project in rocketChipDir / "hardfloat")
+  .settings(commonSettings, chiselSettings)
+  .settings(publishArtifact := false)
+
+lazy val rocketMacros  = (project in rocketChipDir / "macros")
+  .settings(commonSettings, chiselSettings)
+  .settings(publishArtifact := false)
+
+lazy val rocketchip = freshProject("rocketchip", rocketChipDir)
+  .dependsOn(hardfloat, rocketMacros, cde)
+  .settings(commonSettings, chiselSettings)
+
+lazy val rocketLibDeps = (rocketchip / Keys.libraryDependencies)
+//-------------------------------------------------
+// ~Rocket-chip dependencies (subsumes making RC a RootProject)
+//-------------------------------------------------
+
+//-------------------------------------------------
 // my project
 //-------------------------------------------------
-lazy val roma = (project in file("generators/roma"))
-  .settings(libraryDependencies)
-  .settings(chiselSettings, commonSettings)
+lazy val cva6Root = Project("cva6Root", file("."))
 
-lazy val cva6 = (project in file("."))
-  .dependsOn(roma)
-  .settings(libraryDependencies)
+lazy val roma = (project in file("generators/roma"))
+  .dependsOn(rocketchip)
+  .settings(libraryDependencies ++= rocketLibDeps.value)
+  .settings(chiselSettings, commonSettings)
+  .settings(chiselTestSetting)
+
+lazy val cva6 = (project in file("cva6"))
+  .dependsOn(rocketchip, roma)
+  .settings(libraryDependencies ++= rocketLibDeps.value)
   .settings(chiselSettings, commonSettings)
   .settings(chiselTestSetting)
 //-------------------------------------------------
